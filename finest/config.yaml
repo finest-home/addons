@@ -1,7 +1,7 @@
 ---
 # The add-on version is the Finest integration version it installs: the image
 # is built from that release of github.com/finest-home/integration.
-version: "1.7.0"
+version: "1.7.2"
 slug: finest
 name: Finest
 description: Installs the Finest integration for the Finest Home app and keeps it up to date
