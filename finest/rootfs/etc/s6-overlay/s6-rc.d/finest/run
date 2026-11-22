@@ -21,6 +21,14 @@ idle() {
   exec sleep infinity
 }
 
+# Tell Home Assistant Finest is there, so it shows under Discovered in Devices &
+# services and setting it up is one tap. Supervisor keeps the message until Home
+# Assistant is up again; a home already set up ignores it.
+announce() {
+  bashio::discovery "finest_app" "{}" >/dev/null \
+    || bashio::log.warning "Could not announce Finest to Home Assistant. Add it under Settings > Devices & services."
+}
+
 version_of() {
   jq -r '.version // empty' "$1/manifest.json" 2>/dev/null || true
 }
@@ -43,12 +51,14 @@ fi
 
 if [[ "${installed}" == "${bundled}" ]]; then
   bashio::log.info "Already up to date."
+  announce
   idle
 fi
 
 if [[ -n "${installed}" ]] \
   && [[ "$(printf '%s\n%s\n' "${installed}" "${bundled}" | sort -V | tail -n 1)" == "${installed}" ]]; then
   bashio::log.warning "A newer Finest integration (${installed}) is installed than this add-on's (${bundled}). Leaving it as it is."
+  announce
   idle
 fi
 
@@ -61,6 +71,7 @@ mv "${TARGET}.new" "${TARGET}"
 rm -rf "${TARGET}.old"
 
 bashio::log.info "Installed the Finest integration ${bundled}. Restarting Home Assistant to load it."
+announce
 bashio::core.restart || bashio::log.warning "Could not restart Home Assistant. Restart it yourself to finish."
 
 idle

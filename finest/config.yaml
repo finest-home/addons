@@ -17,6 +17,10 @@ init: false
 # Restart Home Assistant Core after installing or updating the integration.
 hassio_api: true
 hassio_role: homeassistant
+# Puts Finest under Discovered in Devices & services, so setting it up is one
+# tap (the integration's async_step_hassio asks who owns the home).
+discovery:
+  - finest_app
 map:
   # custom_components/finest_app lives in Home Assistant's config folder.
   - type: homeassistant_config

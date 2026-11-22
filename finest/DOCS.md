@@ -11,7 +11,8 @@ Installs the [Finest integration](https://github.com/finest-home/integration), w
 - When this add-on updates, it installs the new integration version the same way. Turn on
   **Auto update** to keep Finest current without doing anything.
 
-After the first install, add Finest under **Settings** > **Devices & services**, or let the
+After the first install, Home Assistant shows **Finest** under **Discovered** in
+**Settings** > **Devices & services**. Select **Add** and choose who owns the home. Or let the
 Finest Home app finish the setup. See [Install the integration](https://docs.finest.rs/get-started/install).
 
 ## When it changes nothing
