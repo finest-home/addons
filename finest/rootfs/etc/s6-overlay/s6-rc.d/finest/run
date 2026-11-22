@@ -1,0 +1,66 @@
+#!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# Install or update the Finest integration from the release baked into this
+# add-on's image, restart Home Assistant once if anything changed, then stay
+# idle. Supervisor restarts the add-on after an update, which applies the new
+# version.
+#
+# One thing manages the integration. When HACS installed Finest, or a newer copy
+# than this add-on's is already there, the add-on changes nothing and says why.
+# ==============================================================================
+set -euo pipefail
+
+SOURCE=/opt/finest/finest_app
+CONFIG=/homeassistant
+TARGET="${CONFIG}/custom_components/finest_app"
+HACS_STORE="${CONFIG}/.storage/hacs.repositories"
+
+idle() {
+  # Nothing more to do until the add-on is updated or restarted.
+  exec sleep infinity
+}
+
+version_of() {
+  jq -r '.version // empty' "$1/manifest.json" 2>/dev/null || true
+}
+
+bundled="$(version_of "${SOURCE}")"
+installed=""
+[[ -f "${TARGET}/manifest.json" ]] && installed="$(version_of "${TARGET}")"
+
+bashio::log.info "Finest integration in this add-on: ${bundled}; installed: ${installed:-none}"
+
+# HACS keeps its installed repositories in .storage; Finest's public repository
+# there (under its current or earlier name) means HACS updates it, so this
+# add-on must not.
+if [[ -n "${installed}" && -f "${HACS_STORE}" ]] \
+  && jq -e '.data // {} | to_entries[] | .value | select((.full_name // "" | ascii_downcase) as $n | ($n == "finest-home/integration" or $n == "finest-home/home-assistant") and (.installed // false))' \
+    "${HACS_STORE}" >/dev/null 2>&1; then
+  bashio::log.warning "HACS manages the Finest integration here, so this add-on leaves it alone. Remove it from HACS first if you want the add-on to keep it up to date."
+  idle
+fi
+
+if [[ "${installed}" == "${bundled}" ]]; then
+  bashio::log.info "Already up to date."
+  idle
+fi
+
+if [[ -n "${installed}" ]] \
+  && [[ "$(printf '%s\n%s\n' "${installed}" "${bundled}" | sort -V | tail -n 1)" == "${installed}" ]]; then
+  bashio::log.warning "A newer Finest integration (${installed}) is installed than this add-on's (${bundled}). Leaving it as it is."
+  idle
+fi
+
+# Copy next to the target, then swap, so Home Assistant never sees half a copy.
+mkdir -p "${CONFIG}/custom_components"
+rm -rf "${TARGET}.new" "${TARGET}.old"
+cp -a "${SOURCE}" "${TARGET}.new"
+[[ -d "${TARGET}" ]] && mv "${TARGET}" "${TARGET}.old"
+mv "${TARGET}.new" "${TARGET}"
+rm -rf "${TARGET}.old"
+
+bashio::log.info "Installed the Finest integration ${bundled}. Restarting Home Assistant to load it."
+bashio::core.restart || bashio::log.warning "Could not restart Home Assistant. Restart it yourself to finish."
+
+idle

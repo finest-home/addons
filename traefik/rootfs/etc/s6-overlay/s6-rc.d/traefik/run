@@ -1,0 +1,55 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+set -euo pipefail
+
+# Replaces the old core_letsencrypt + nginx pair. A single dynamic-config render
+# handles both the e-/i- HTTP vhost and the t- TURNS SNI passthrough; the
+# certificate comes from /ssl (see below).
+
+OPTIONS_FILE="/data/options.json"
+PORT="$(bashio::core.port)"
+
+mkdir -p /etc/traefik/dynamic /data
+# lego's leftovers from before 2.0.0: its certificate store (with an old
+# private key) and the per-home TSIG secret, which no longer exists anywhere.
+rm -f /data/acme.json /data/.rfc2136_secret
+
+# Precompute the fiddly bits with jq so the Go templates stay flat (if/range
+# on plain fields only — no index/or, which keeps this portable across
+# tempio's template engine version).
+JSON_CONF="$(
+  jq --argjson port "${PORT}" '
+    ({options: .})
+    + ({variables: {
+        port: $port,
+        turn_upstream: (
+          if (.turn_upstream // "") == "" then "172.30.32.1" else .turn_upstream end
+        ),
+        cert_main: (.domains[0] // ""),
+        cert_sans: (
+          (.domains[1:] // [])
+          + (if (.turn_domain // "") != "" then [.turn_domain] else [] end)
+        ),
+        host_rule: ([.domains[] | "Host(`" + . + "`)"] | join(" || ")),
+        turn_sni: (.turn_domains[0] // "")
+      }})
+  ' "$OPTIONS_FILE"
+)"
+
+echo "${JSON_CONF}" | tempio \
+  -template /etc/traefik/static.yaml.gtpl \
+  -out /data/traefik-static.yaml
+
+echo "${JSON_CONF}" | tempio \
+  -template /etc/traefik/dynamic.yaml.gtpl \
+  -out /etc/traefik/dynamic/nestfi.yaml
+
+# The Finest integration's cert manager issues and renews the certificate and
+# keeps it in /ssl; certdump reloads it on change. This add-on does no ACME and
+# sends no DNS (lego and its RFC2136 options were removed in 2.0.0).
+rm -f /etc/traefik/dynamic/tls.yaml
+nestfi-tls-config \
+  "/ssl/$(jq -r '.certfile' "$OPTIONS_FILE")" \
+  "/ssl/$(jq -r '.keyfile' "$OPTIONS_FILE")"
+
+exec traefik --configFile=/data/traefik-static.yaml

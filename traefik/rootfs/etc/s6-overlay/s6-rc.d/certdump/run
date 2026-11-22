@@ -1,0 +1,26 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+set -euo pipefail
+
+# The Finest integration's cert manager writes the certificate to
+# /share/finest/cert. Whenever it changes, nestfi-tls-config copies it into
+# /ssl (Coturn watches /ssl itself) and rewrites the inline tls.yaml, which
+# Traefik's file provider picks up.
+#
+# Until 2.0.0 this service dumped lego's acme.json into /ssl; the name stayed.
+
+OPTIONS_FILE="/data/options.json"
+CERT_FILE="/ssl/$(jq -r '.certfile' "$OPTIONS_FILE")"
+KEY_FILE="/ssl/$(jq -r '.keyfile' "$OPTIONS_FILE")"
+
+SRC_DIR="/share/finest/cert"
+while true; do
+  nestfi-tls-config "$CERT_FILE" "$KEY_FILE"
+  # Watch the folder once the integration has created it; until then wake up
+  # every minute to look for it.
+  if [[ -d "$SRC_DIR" ]]; then
+    inotifywait -q -t 600 -e close_write -e moved_to -e create "$SRC_DIR" >/dev/null 2>&1 || true
+  else
+    sleep 60
+  fi
+done

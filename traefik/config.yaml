@@ -1,0 +1,46 @@
+---
+version: "2.1.1"
+slug: traefik
+name: Traefik SSL proxy
+description: Dual-hostname TLS reverse proxy for Home Assistant, serving the Finest integration's certificate, with TURNS SNI passthrough for Coturn
+url: https://github.com/finest-home/addons
+arch:
+  - aarch64
+  - amd64
+init: false
+hassio_api: true
+map:
+  # The integration's certificate is read from /share/finest/cert and copied
+  # into /ssl for Traefik and Coturn; default ssl is read-only.
+  - ssl:rw
+  - share
+options:
+  domains:
+    - home.example.com
+  turn_domain: ""
+  turn_domains: []
+  turn_upstream: ""
+  turn_upstream_port: 5349
+  certfile: fullchain.pem
+  keyfile: privkey.pem
+  hsts: "max-age=31536000; includeSubDomains"
+  # Upstream ingresses (IP or CIDR) allowed to send PROXY protocol on :443,
+  # so the real client IP survives an SNI-passthrough hop in front of this
+  # add-on. Empty = PROXY protocol disabled (default; direct WAN exposure).
+  proxy_protocol_trusted_ips: []
+schema:
+  domains:
+    - str
+  turn_domain: str?
+  turn_domains:
+    - str?
+  turn_upstream: str?
+  turn_upstream_port: int?
+  certfile: str
+  keyfile: str
+  hsts: str
+  proxy_protocol_trusted_ips:
+    - str?
+ports:
+  443/tcp: 443
+  80/tcp: null

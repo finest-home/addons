@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Serve the certificate the Finest integration's cert manager keeps in
+# /share/finest/cert (/ssl is read-only inside Home Assistant). It is copied
+# into /ssl first — Coturn reads it there — then loaded into Traefik.
+#
+# The PEMs are written *inline* into a dynamic config file rather than
+# referenced by path: Traefik reads a referenced certFile only when the YAML
+# around it changes, and it skips a configuration identical to the last one.
+# Inlining makes a new certificate a new configuration, so a renewal reloads.
+#
+# Usage: nestfi-tls-config CERT_FILE KEY_FILE
+set -euo pipefail
+
+CERT_FILE="$1"
+KEY_FILE="$2"
+OUT="${NESTFI_TLS_OUT:-/etc/traefik/dynamic/tls.yaml}"
+SRC_DIR="${NESTFI_CERT_SRC:-/share/finest/cert}"
+
+# Key first, then the certificate, each via a temp file and mv, so readers
+# never see a partial file. The temp file is created under umask 077, so the
+# private key is never readable by others, not even until the chmod.
+copy_in() {
+  local src="$1" dst="$2" mode="$3"
+  [[ -s "$src" ]] || return 0
+  [[ -s "$dst" ]] && cmp -s "$src" "$dst" && return 0
+  rm -f "$dst.tmp"
+  (umask 077 && cp "$src" "$dst.tmp") && chmod "$mode" "$dst.tmp" && mv -f "$dst.tmp" "$dst"
+}
+if [[ -s "$SRC_DIR/fullchain.pem" && -s "$SRC_DIR/privkey.pem" ]]; then
+  copy_in "$SRC_DIR/privkey.pem" "$KEY_FILE" 600
+  copy_in "$SRC_DIR/fullchain.pem" "$CERT_FILE" 644
+fi
+
+[[ -s "$CERT_FILE" && -s "$KEY_FILE" ]] || exit 0
+
+# No .yaml suffix on the temp name, so the file provider never parses it.
+tmp="$(mktemp -p "$(dirname "$OUT")" .tls.XXXXXX)"
+{
+  echo "tls:"
+  echo "  certificates:"
+  echo "    - certFile: |"
+  sed 's/^/        /' "$CERT_FILE"
+  echo "      keyFile: |"
+  sed 's/^/        /' "$KEY_FILE"
+} > "$tmp"
+chmod 600 "$tmp"
+
+if [[ -s "$OUT" ]] && cmp -s "$tmp" "$OUT"; then
+  rm -f "$tmp"
+  exit 0
+fi
+mv -f "$tmp" "$OUT"
+echo "nestfi-tls-config: loaded certificate from ${CERT_FILE}"

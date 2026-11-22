@@ -1,0 +1,23 @@
+---
+# The add-on version is the Finest integration version it installs: the image
+# is built from that release of github.com/finest-home/integration.
+version: "1.7.0"
+slug: finest
+name: Finest
+description: Installs the Finest integration for the Finest Home app and keeps it up to date
+url: https://docs.finest.rs/get-started/install
+arch:
+  - aarch64
+  - amd64
+# Long-running (it only sleeps after its check), so Supervisor restarts it
+# after an update and the new integration version is applied straight away.
+startup: application
+boot: auto
+init: false
+# Restart Home Assistant Core after installing or updating the integration.
+hassio_api: true
+hassio_role: homeassistant
+map:
+  # custom_components/finest_app lives in Home Assistant's config folder.
+  - type: homeassistant_config
+    read_only: false

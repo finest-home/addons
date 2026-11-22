@@ -1,0 +1,35 @@
+configuration:
+  username:
+    name: Username
+  password:
+    name: Password
+  realm:
+    name: Realm
+  listening_ip:
+    name: Listening IP
+    description: Local IP for Coturn bind and relay.
+  external_ip:
+    name: External IP
+    description: Public IP advertised to WebRTC clients.
+  min_port:
+    name: Relay min port
+  max_port:
+    name: Relay max port
+  use_tls:
+    name: TURN over TLS
+    description: Also listen for TURNS. Requires cert_file/key_file to exist under /ssl (Traefik's certdump writes these once ACME succeeds).
+  tls_listening_port:
+    name: TURNS port
+    description: Direct TLS port (5349). TURNS on 443 is reached separately, via the Traefik add-on's SNI passthrough route.
+  turn_domain:
+    name: TURN domain / realm
+    description: The t-<core>.ui.nestfi.rs SAN. Used as the TURN realm for diagnostics; not required to match the cert for RFC 8489 long-term credentials to work.
+  cert_file:
+    name: Certificate file
+  key_file:
+    name: Private key file
+  log_level:
+    name: Log level
+    description: >-
+      info filters Coturn ": DEBUG:" lines (BusyBox-safe). verbose adds -v;
+      debug adds -V.
